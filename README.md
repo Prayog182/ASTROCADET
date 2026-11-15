@@ -50,3 +50,15 @@ NASA DONKI (Space Weather Database) solar flare data was downloaded and explored
 ## Project Demo
 
 See the presentation PDF in the `presentation` folder.
+
+## Project Versions
+
+ASTROCADET has two separate implementations:
+
+**1. C++ Command-Line Version**
+The original version was developed using C++. It runs in the terminal and includes seven-day astronaut missions, resource management, emergency events, difficulty levels, scoring, and mission debriefing.
+
+**2. Browser-Based Version**
+A separate browser version was developed using HTML, CSS, and JavaScript. It runs directly in a web browser and is published using GitHub Pages.
+
+**Important:** The browser version does not execute the C++ code. Both versions are separate implementations of the ASTROCADET educational mission simulation.

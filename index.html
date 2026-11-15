@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Astrocadet: Junior Astronaut Mission Trainer</title>
+<style>
+:root{--bg:#0d1230;--panel:#18214a;--edge:#2c3a78;--ink:#eef2ff;--dim:#9aa7d6;--amber:#ffc233;--teal:#3ed6c0;--red:#ff5d6c;--blue:#6aa8ff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif;min-height:100vh;
+background-image:radial-gradient(1px 1px at 20px 30px,#fff8,transparent),radial-gradient(1.5px 1.5px at 120px 90px,#fffc,transparent),radial-gradient(1px 1px at 210px 40px,#fff6,transparent);background-size:240px 140px}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:2.4rem;margin:0;letter-spacing:.02em;color:var(--amber)}
+h2{margin:0 0 8px;font-size:1.3rem}
+.sub{color:var(--dim);margin:0 0 20px}
+.panel{background:var(--panel);border:2px solid var(--edge);border-radius:14px;padding:16px;margin-bottom:14px}
+.btn{display:block;width:100%;text-align:left;background:#22306a;color:var(--ink);border:2px solid var(--edge);border-radius:10px;padding:12px 14px;margin:8px 0;font:inherit;cursor:pointer}
+.btn:hover,.btn:focus-visible{border-color:var(--amber);outline:none}
+.btn small{display:block;color:var(--dim)}
+.go{background:var(--amber);color:#1a1530;border-color:var(--amber);font-weight:700;text-align:center}
+.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{background:#0a0f26;border:2px solid var(--edge);border-radius:20px;padding:4px 12px;font-size:.95rem}
+.chip b{color:var(--amber)}
+.bar{display:grid;grid-template-columns:96px 1fr 48px;align-items:center;gap:10px;margin:8px 0}
+.track{height:16px;background:#0a0f26;border-radius:8px;overflow:hidden;border:1px solid var(--edge)}
+.fill{height:100%;transition:width .5s}
+.val{text-align:right;font-variant-numeric:tabular-nums}
+.alert{border-color:var(--red);background:#34172c}
+.alert h2{color:var(--red)}
+.log{color:var(--teal);margin:0 0 8px}
+.rank{font-size:1.8rem;color:var(--amber);margin:6px 0}
+.fail h2{color:var(--red)}
+@media(max-width:480px){.bar{grid-template-columns:78px 1fr 44px}h1{font-size:1.9rem}}
+@media(prefers-reduced-motion:reduce){.fill{transition:none}}
+.astro{width:104px;float:right;margin:0 0 8px 10px}
+input[type=file]{color:var(--dim);max-width:100%;font:inherit}
+.hs{width:100%;border-collapse:collapse}.hs td{padding:5px 6px;border-bottom:1px solid var(--edge)}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const $=document.getElementById('app');
+const clamp=v=>Math.max(0,Math.min(100,v));
+let S,AC,MUTED=false,FLARE=null,FLARE_MSG='';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ASTRO=`<svg class="astro" viewBox="0 0 120 120" role="img" aria-label="Astronaut"><rect x="28" y="52" width="64" height="52" rx="16" fill="#e8ecff"/><rect x="16" y="58" width="18" height="36" rx="9" fill="#cdd5ff"/><rect x="86" y="58" width="18" height="36" rx="9" fill="#cdd5ff"/><rect x="42" y="102" width="14" height="14" rx="5" fill="#cdd5ff"/><rect x="64" y="102" width="14" height="14" rx="5" fill="#cdd5ff"/><rect x="44" y="70" width="32" height="18" rx="4" fill="#2c3a78"/><circle cx="52" cy="79" r="3" fill="#ffc233"/><circle cx="62" cy="79" r="3" fill="#3ed6c0"/><circle cx="60" cy="34" r="30" fill="#f4f6ff"/><rect x="38" y="20" width="44" height="30" rx="14" fill="#18214a"/><ellipse cx="52" cy="29" rx="8" ry="4" fill="#6aa8ff" opacity=".7"/></svg>`;
+/* sound */
+function beep(f,d,t,delay){if(MUTED)return;try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain(),s=AC.currentTime+(delay||0);o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(.12,s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.connect(g);g.connect(AC.destination);o.start(s);o.stop(s+d)}catch(e){}}
+function sfx(k){if(k=='ok'){beep(520,.12);beep(780,.15,'sine',.1)}if(k=='alarm'){beep(300,.2,'square');beep(300,.2,'square',.3)}if(k=='win')[523,659,784,1047].forEach((f,i)=>beep(f,.25,'triangle',i*.15));if(k=='lose')[300,220,150].forEach((f,i)=>beep(f,.3,'sawtooth',i*.2))}
+function mute(){MUTED=!MUTED;menu()}
+/* NASA data */
+function loadFlare(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);const a=Array.isArray(d)?d:(d.flares||d.data||[]);FLARE=a.find(x=>x&&x.flrID)||null;FLARE_MSG=FLARE?'':'No solar flare record found in that file.'}catch(e){FLARE=null;FLARE_MSG='Could not read that file. Upload a DONKI flare .json file.'}menu()};r.readAsText(file)}
+function flarePanel(){return `<div class="panel"><h2>NASA solar flare data</h2>${FLARE?`<p class="log">Flare record loaded: ${esc(FLARE.flrID)}<br>Class ${esc(FLARE.classType||'?')}, peak ${esc(FLARE.peakTime||'?')}, source ${esc(FLARE.sourceLocation||'?')}<br>It will appear in your radiation alerts.</p>`:`<p>Upload a DONKI solar flare file (.json) to bring a real flare into the game.</p>`}<p class="log">${FLARE_MSG}</p><input type="file" accept=".json,application/json" onchange="loadFlare(this.files[0])"></div>`}
+/* high scores */
+function scores(){try{return JSON.parse(localStorage.getItem('astro-scores')||'[]')}catch(e){return[]}}
+function rankOf(f,s){return f?'Mission Trainee':s>=150?'Elite Astronaut':s>=90?'Senior Astronaut':'Junior Astronaut'}
+function save(){try{const a=scores();a.push({s:S.score,sci:S.sci,rank:rankOf(S.failed,S.score),ok:!S.failed,d:new Date().toLocaleDateString()});a.sort((x,y)=>y.s-x.s);localStorage.setItem('astro-scores',JSON.stringify(a.slice(0,5)))}catch(e){}}
+function clearScores(){try{localStorage.removeItem('astro-scores')}catch(e){}menu()}
+function scorePanel(){const a=scores();return `<div class="panel"><h2>High scores</h2>${a.length?`<table class="hs">${a.map((x,i)=>`<tr><td>${i+1}</td><td><b>${x.s}</b></td><td>${esc(x.rank)}</td><td>${x.ok?'Complete':'Failed'}</td><td>${esc(x.d)}</td></tr>`).join('')}</table>`:'<p>No missions yet. Finish one to set a score.</p>'}<button class="btn" onclick="mute()">Sound: ${MUTED?'off':'on'}</button>${a.length?'<button class="btn" onclick="clearScores()">Clear high scores</button>':''}</div>`}
+
+function limit(r){for(const k in r)r[k]=clamp(r[k]);}
+function failed(r){return r.oxygen<=0||r.water<=0||r.food<=0||r.power<=0||r.radiation>=100;}
+function bar(name,v,bad){
+  const c=bad?(v>=70?'var(--red)':v>=40?'var(--amber)':'var(--teal)'):(v<=25?'var(--red)':v<=50?'var(--amber)':'var(--teal)');
+  return `<div class="bar"><span>${name}</span><div class="track"><div class="fill" style="width:${v}%;background:${c}"></div></div><span class="val">${v}%</span></div>`;
+}
+function dash(){
+  const r=S.r;
+  return `<div class="top"><span class="chip">Day <b>${S.day}</b>/7</span><span class="chip">Science <b>${S.sci}</b></span><span class="chip">Score <b>${S.score}</b></span></div>
+  <div class="panel">${bar('Oxygen',r.oxygen)}${bar('Water',r.water)}${bar('Food',r.food)}${bar('Power',r.power)}${bar('Radiation',r.radiation,true)}</div>`;
+}
+const log=()=>S.msgs.length?`<p class="log">${S.msgs.join('<br>')}</p>`:'';
+
+function menu(){
+  $.innerHTML=`${ASTRO}<h1>ASTROCADET</h1><p class="sub">Junior Astronaut Mission Trainer</p>
+  <div class="panel"><h2>Welcome, cadet</h2><p>Survive 7 days on the station. Keep oxygen, water, food and power above zero, and keep radiation below 100%.</p>
+  <button class="btn" onclick="learn()">Learn mode<small>Astronaut school basics</small></button>
+  <button class="btn go" onclick="diff()">Start mission</button></div>${flarePanel()}${scorePanel()}`;
+}
+function learn(){
+  const items=[['Oxygen','Astronauts need oxygen to breathe.'],['Water recycling','Space stations recycle water to reduce waste.'],['Solar energy','Solar panels convert sunlight into electricity.'],['Radiation protection','Shelters help protect astronauts from radiation.'],['Greenhouse','Plants help produce food and support life.']];
+  $.innerHTML=`<h1>Astronaut school</h1><p class="sub">Five things every cadet should know</p>`+
+  items.map(i=>`<div class="panel"><h2>${i[0]}</h2><p style="margin:0">${i[1]}</p></div>`).join('')+
+  `<button class="btn go" onclick="diff()">Start mission</button><button class="btn" onclick="menu()">Back</button>`;
+}
+function diff(){
+  $.innerHTML=`<h1>Choose difficulty</h1><p class="sub">Harder missions start with fewer supplies.</p>
+  <button class="btn" onclick="start(100)">Easy<small>All supplies start at 100%</small></button>
+  <button class="btn" onclick="start(90)">Medium<small>Supplies start at 90%</small></button>
+  <button class="btn" onclick="start(80)">Hard<small>Supplies start at 80%</small></button>`;
+}
+function start(v){
+  S={r:{oxygen:v,water:v,food:v,power:v,radiation:0},day:1,sci:0,score:0,msgs:[],failed:false,solarBlocked:false};
+  day();
+}
+function day(){
+  const acts=[['Conduct research','+10 science, uses 5 power'],['Conserve resources','Use fewer supplies today'],['Maintain solar panels','Gain power'],['Operate the greenhouse','Grow food, uses water and power'],['Recycle the water','Gain water, uses power']];
+  $.innerHTML=`<h1>Mission control</h1>${dash()}${log()}<div class="panel"><h2>Choose your daily action</h2>`+
+  acts.map((a,i)=>`<button class="btn" onclick="act(${i+1})">${a[0]}<small>${a[1]}</small></button>`).join('')+`</div>`;
+}
+function act(n){
+  const r=S.r;let cons=false;S.msgs=[];sfx('ok');
+  if(n==1){S.msgs.push('Research completed!');S.sci+=10;S.score+=15;r.power-=5;}
+  if(n==2){S.msgs.push('Resources conserved!');cons=true;S.score+=10;}
+  if(n==3){S.msgs.push('Solar panels maintained!');r.power+=9;S.score+=10;}
+  if(n==4){S.msgs.push('Greenhouse operated!');r.food+=8;r.water-=5;r.power-=10;S.score+=15;}
+  if(n==5){S.msgs.push('Water recycling completed!');r.water+=10;r.power-=8;S.score+=10;}
+  limit(r);
+  if(cons){r.oxygen-=7;r.water-=8;r.food-=6;r.power-=5;}else{r.oxygen-=10;r.water-=12;r.food-=8;r.power-=8;}
+  limit(r);
+  if(failed(r))return end(true);
+  emergency();
+}
+const EM={
+ 1:{t:'Solar dust storm',a:'Clean the solar panels (5 power)',b:'Wait for the storm to pass'},
+ 2:{t:'Water leak detected',a:'Repair the leak (5 power)',b:'Ignore the leak'},
+ 3:{t:'Radiation alert',a:'Enter the radiation shelter (5 power)',b:'Conduct outside research'},
+ 4:{t:'Oxygen filter warning',a:'Repair the filter (5 power)',b:'Ignore the warning'}
+};
+function emergency(){
+  S.em=Math.floor(Math.random()*4)+1;sfx('alarm');
+  if(S.em==4){S.r.oxygen-=15;limit(S.r);}
+  const e={...EM[S.em]};if(S.em==3&&FLARE)e.t+=` (real NASA flare ${esc(FLARE.classType||'')} ${esc(FLARE.flrID)})`;
+  $.innerHTML=`<h1>Mission control</h1>${dash()}${log()}<div class="panel alert"><h2>Emergency: ${e.t}</h2><p>Decide fast, cadet.</p>
+  <button class="btn" onclick="resolve(1)">${e.a}</button><button class="btn" onclick="resolve(2)">${e.b}</button></div>`;
+}
+function resolve(c){
+  const r=S.r,m=S.msgs=[];let blocked=false;const can=c==1&&r.power>=5;
+  if(can){r.power-=5;S.score+=10;}
+  switch(S.em){
+   case 1:if(can)m.push('Solar panels cleaned!');else{blocked=true;m.push('Solar charging blocked today!');}break;
+   case 2:if(can){r.water+=10;m.push('Leak repaired!');}else m.push('Water keeps leaking.');break;
+   case 3:if(can)m.push('You are protected.');else{r.radiation+=20;S.sci+=15;m.push('Radiation exposure increased.');}break;
+   case 4:m.push(can?'Oxygen filter repaired!':'Oxygen supply remains low!');break;
+  }
+  if(c==1&&!can)m.push('Not enough power for that choice.');
+  if(!blocked){r.power+=15;m.push('Solar panels recharged +15 power.');}
+  limit(r);
+  if(failed(r))return end(true);
+  if(S.day>=7)return end(false);
+  m.unshift(`Day ${S.day} completed!`);
+  S.day++;day();
+}
+function end(f){
+  const r=S.r;S.failed=f;sfx(f?'lose':'win');save();
+  const rank=f?'Mission Trainee':S.score>=150?'Elite Astronaut':S.score>=90?'Senior Astronaut':'Junior Astronaut';
+  const why=r.oxygen<=0?'You ran out of oxygen.':r.water<=0?'You ran out of water.':r.food<=0?'You ran out of food.':r.power<=0?'The station lost power.':'Radiation reached a deadly level.';
+  $.innerHTML=`${ASTRO}<h1>Mission debrief</h1><div class="panel ${f?'fail':''}">${f?`<h2>Mission failed on day ${S.day}</h2><p>${why} Try a different plan next time.</p>`:`<h2>Mission complete!</h2><p>Congratulations, astronaut! You survived all 7 days.</p>`}
+  <p>Science points: <b>${S.sci}</b><br>Mission score: <b>${S.score}</b></p><div class="rank">${rank}</div></div>
+  <div class="panel"><h2>Final resources</h2>${bar('Oxygen',r.oxygen)}${bar('Water',r.water)}${bar('Food',r.food)}${bar('Power',r.power)}${bar('Radiation',r.radiation,true)}</div>
+  <button class="btn go" onclick="diff()">Play again</button><button class="btn" onclick="menu()">Main menu</button>`;
+}
+menu();
+</script>
+</body>
+</html>
